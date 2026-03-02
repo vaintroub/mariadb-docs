@@ -21,6 +21,7 @@ Package v1alpha1 contains API Schema definitions for the v1alpha1 API group
 - [MariaDB](#mariadb)
 - [MaxScale](#maxscale)
 - [PhysicalBackup](#physicalbackup)
+- [PointInTimeRecovery](#pointintimerecovery)
 - [Restore](#restore)
 - [SqlJob](#sqljob)
 - [User](#user)
@@ -106,6 +107,29 @@ _Appears in:_
 | `gracefulShutdownTimeout` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.35/#duration-v1-meta)_ | GracefulShutdownTimeout is the time we give to the agent container in order to gracefully terminate in-flight requests. |  |  |
 
 
+#### AzureBlob
+
+
+
+
+
+
+
+_Appears in:_
+- [BootstrapFrom](#bootstrapfrom)
+- [PhysicalBackupStorage](#physicalbackupstorage)
+- [PointInTimeRecoveryStorage](#pointintimerecoverystorage)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `containerName` _string_ | ContainerName is the name of the storage container. |  | Required: \{\} <br /> |
+| `serviceURL` _string_ | ServiceURL is the full URL for connecting to Azure, usually in the form: http(s)://<account>.blob.core.windows.net/. |  | Required: \{\} <br /> |
+| `prefix` _string_ | Prefix indicates a folder/subfolder in the container. For example: mariadb/ or mariadb/backups. A trailing slash '/' is added if not provided. |  |  |
+| `storageAccountName` _string_ | StorageAccountName is the name of the storage account. Pairs with StorageAccountKey for static credential authentication |  |  |
+| `storageAccountKey` _[SecretKeySelector](#secretkeyselector)_ | StorageAccountKey is a reference to a Secret key containing the Azure Blob Storage Storage account Key. Pairs with StorageAccountKey for static credential authentication |  |  |
+| `tls` _[TLSConfig](#tlsconfig)_ | TLS provides the configuration required to establish TLS connections with Azure Blob Storage. |  |  |
+
+
 #### Backup
 
 
@@ -138,7 +162,7 @@ _Appears in:_
 | Field | Description |
 | --- | --- |
 | `Logical` | BackupContentTypeLogical represents a logical backup created using mariadb-dump.<br /> |
-| `Physical` | BackupContentTypePhysical represents a physical backup created using mariadb-backup.<br /> |
+| `Physical` | BackupContentTypePhysical represents a physical backup created using mariadb-backup or a VolumeSnapshot.<br /> |
 
 
 #### BackupSpec
@@ -170,7 +194,7 @@ _Appears in:_
 | `timeZone` _string_ | TimeZone defines the timezone associated with the cron expression. |  |  |
 | `mariaDbRef` _[MariaDBRef](#mariadbref)_ | MariaDBRef is a reference to a MariaDB object. |  | Required: \{\} <br /> |
 | `compression` _[CompressAlgorithm](#compressalgorithm)_ | Compression algorithm to be used in the Backup. |  | Enum: [none bzip2 gzip] <br /> |
-| `stagingStorage` _[BackupStagingStorage](#backupstagingstorage)_ | StagingStorage defines the temporary storage used to keep external backups (i.e. S3) while they are being processed.<br />It defaults to an emptyDir volume, meaning that the backups will be temporarily stored in the node where the Backup Job is scheduled.<br />The staging area gets cleaned up after each backup is completed, consider this for sizing it appropriately. |  |  |
+| `stagingStorage` _[StagingStorage](#stagingstorage)_ | StagingStorage defines the temporary storage used to keep external backups (i.e. S3) while they are being processed.<br />It defaults to an emptyDir volume, meaning that the backups will be temporarily stored in the node where the Backup Job is scheduled.<br />The staging area gets cleaned up after each backup is completed, consider this for sizing it appropriately. |  |  |
 | `storage` _[BackupStorage](#backupstorage)_ | Storage defines the final storage for backups. |  | Required: \{\} <br /> |
 | `schedule` _[Schedule](#schedule)_ | Schedule defines when the Backup will be taken. |  |  |
 | `maxRetention` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.35/#duration-v1-meta)_ | MaxRetention defines the retention policy for backups. Old backups will be cleaned up by the Backup Job.<br />It defaults to 30 days. |  |  |
@@ -180,27 +204,6 @@ _Appears in:_
 | `backoffLimit` _integer_ | BackoffLimit defines the maximum number of attempts to successfully take a Backup. |  |  |
 | `restartPolicy` _[RestartPolicy](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.35/#restartpolicy-v1-core)_ | RestartPolicy to be added to the Backup Pod. | OnFailure | Enum: [Always OnFailure Never] <br /> |
 | `inheritMetadata` _[Metadata](#metadata)_ | InheritMetadata defines the metadata to be inherited by children resources. |  |  |
-
-
-#### BackupStagingStorage
-
-
-
-BackupStagingStorage defines the temporary storage used to keep external backups (i.e. S3) while they are being processed.
-
-
-
-_Appears in:_
-- [BackupSpec](#backupspec)
-- [BootstrapFrom](#bootstrapfrom)
-- [PhysicalBackupSpec](#physicalbackupspec)
-- [RestoreSource](#restoresource)
-- [RestoreSpec](#restorespec)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `persistentVolumeClaim` _[PersistentVolumeClaimSpec](#persistentvolumeclaimspec)_ | PersistentVolumeClaim is a Kubernetes PVC specification. |  |  |
-| `volume` _[StorageVolumeSource](#storagevolumesource)_ | Volume is a Kubernetes volume specification. |  |  |
 
 
 #### BackupStorage
@@ -254,12 +257,15 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `backupRef` _[TypedLocalObjectReference](#typedlocalobjectreference)_ | BackupRef is reference to a backup object. If the Kind is not specified, a logical Backup is assumed.<br />This field takes precedence over S3 and Volume sources. |  |  |
 | `volumeSnapshotRef` _[LocalObjectReference](#localobjectreference)_ | VolumeSnapshotRef is a reference to a VolumeSnapshot object.<br />This field takes precedence over S3 and Volume sources. |  |  |
+| `pointInTimeRecoveryRef` _[LocalObjectReference](#localobjectreference)_ | PointInTimeRecoveryRef is a reference to a PointInTimeRecovery object.<br />Providing this field implies restoring the PhysicalBackup referenced in the PointInTimeRecovery object and replaying the<br />archived binary logs up to the point-in-time restoration target, defined by the targetRecoveryTime field. |  |  |
 | `backupContentType` _[BackupContentType](#backupcontenttype)_ | BackupContentType is the backup content type available in the source to bootstrap from.<br />It is inferred based on the BackupRef and VolumeSnapshotRef fields. If inference is not possible, it defaults to Logical.<br />Set this field explicitly when using physical backups from S3 or Volume sources. |  | Enum: [Logical Physical] <br /> |
 | `s3` _[S3](#s3)_ | S3 defines the configuration to restore backups from a S3 compatible storage.<br />This field takes precedence over the Volume source. |  |  |
+| `azureBlob` _[AzureBlob](#azureblob)_ | AzureBlob defines the configuration to restore from Azure Blob compatible storage.<br />This field takes precedence over the Volume source. |  |  |
 | `volume` _[StorageVolumeSource](#storagevolumesource)_ | Volume is a Kubernetes Volume object that contains a backup. |  |  |
 | `targetRecoveryTime` _[Time](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.35/#time-v1-meta)_ | TargetRecoveryTime is a RFC3339 (1970-01-01T00:00:00Z) date and time that defines the point in time recovery objective.<br />It is used to determine the closest restoration source in time. |  |  |
-| `stagingStorage` _[BackupStagingStorage](#backupstagingstorage)_ | StagingStorage defines the temporary storage used to keep external backups (i.e. S3) while they are being processed.<br />It defaults to an emptyDir volume, meaning that the backups will be temporarily stored in the node where the Job is scheduled. |  |  |
-| `restoreJob` _[Job](#job)_ | RestoreJob defines additional properties for the Job used to perform the restoration. |  |  |
+| `stagingStorage` _[StagingStorage](#stagingstorage)_ | StagingStorage defines the temporary storage used to keep external backups and binary logs (i.e. S3) while they are being processed.<br />It defaults to an emptyDir volume, meaning that the backups will be temporarily stored in the node where the Job is scheduled. |  |  |
+| `restoreJob` _[Job](#job)_ | RestoreJob defines additional properties for the restoration Job. |  |  |
+| `logLevel` _string_ | LogLevel to be used in the mariadb-enterprise-operator container of the restoration Job. It defaults to 'info'. | info | Enum: [debug info warn error dpanic panic fatal] <br /> |
 
 
 #### CSIVolumeSource
@@ -282,6 +288,27 @@ _Appears in:_
 | `fsType` _string_ |  |  |  |
 | `volumeAttributes` _object (keys:string, values:string)_ |  |  |  |
 | `nodePublishSecretRef` _[LocalObjectReference](#localobjectreference)_ |  |  |  |
+
+
+#### CertConfig
+
+
+
+CertConfig defines parameters to configure a certificate.
+
+
+
+_Appears in:_
+- [ExternalTLS](#externaltls)
+- [MaxScaleTLS](#maxscaletls)
+- [TLS](#tls)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `caLifetime` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.35/#duration-v1-meta)_ | CALifetime defines the CA certificate validity. |  |  |
+| `certLifetime` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.35/#duration-v1-meta)_ | CertLifetime defines the certificate validity. |  |  |
+| `privateKeyAlgorithm` _string_ | PrivateKeyAlgorithm is the algorithm to be used for the CA and leaf certificate private keys.<br />One of: ECDSA or RSA |  | Enum: [ECDSA RSA] <br /> |
+| `privateKeySize` _integer_ | PrivateKeyAlgorithm is the key size to be used for the CA and leaf certificate private keys.<br />Supported values: ECDSA(256, 384, 521), RSA(2048, 3072, 4096) |  |  |
 
 
 #### CleanupPolicy
@@ -316,6 +343,7 @@ CompressAlgorithm defines the compression algorithm for a Backup resource.
 _Appears in:_
 - [BackupSpec](#backupspec)
 - [PhysicalBackupSpec](#physicalbackupspec)
+- [PointInTimeRecoverySpec](#pointintimerecoveryspec)
 
 | Field | Description |
 | --- | --- |
@@ -418,7 +446,6 @@ ConnectionTemplate defines a template to customize Connection objects.
 _Appears in:_
 - [ConnectionSpec](#connectionspec)
 - [ExternalMariaDBSpec](#externalmariadbspec)
-- [MariaDBMaxScaleSpec](#mariadbmaxscalespec)
 - [MariaDBSpec](#mariadbspec)
 - [MaxScaleSpec](#maxscalespec)
 
@@ -751,11 +778,11 @@ _Appears in:_
 | `serverCASecretRef` _[LocalObjectReference](#localobjectreference)_ | ServerCASecretRef is a reference to a Secret containing the server certificate authority keypair. It is used to establish trust and issue server certificates.<br />One of:<br />- Secret containing both the 'ca.crt' and 'ca.key' keys. This allows you to bring your own CA to Kubernetes to issue certificates.<br />- Secret containing only the 'ca.crt' in order to establish trust. In this case, either serverCertSecretRef or serverCertIssuerRef must be provided.<br />If not provided, a self-signed CA will be provisioned to issue the server certificate. |  |  |
 | `serverCertSecretRef` _[LocalObjectReference](#localobjectreference)_ | ServerCertSecretRef is a reference to a TLS Secret containing the server certificate.<br />It is mutually exclusive with serverCertIssuerRef. |  |  |
 | `serverCertIssuerRef` _[ObjectReference](#objectreference)_ | ServerCertIssuerRef is a reference to a cert-manager issuer object used to issue the server certificate. cert-manager must be installed previously in the cluster.<br />It is mutually exclusive with serverCertSecretRef.<br />By default, the Secret field 'ca.crt' provisioned by cert-manager will be added to the trust chain. A custom trust bundle may be specified via serverCASecretRef. |  |  |
-| `serverCertConfig` _[TLSConfig](#tlsconfig)_ | ServerCertConfig allows configuring the server certificates, either issued by the operator or cert-manager.<br />If not set, the default settings will be used. |  |  |
+| `serverCertConfig` _[CertConfig](#certconfig)_ | ServerCertConfig allows configuring the server certificates, either issued by the operator or cert-manager.<br />If not set, the default settings will be used. |  |  |
 | `clientCASecretRef` _[LocalObjectReference](#localobjectreference)_ | ClientCASecretRef is a reference to a Secret containing the client certificate authority keypair. It is used to establish trust and issue client certificates.<br />One of:<br />- Secret containing both the 'ca.crt' and 'ca.key' keys. This allows you to bring your own CA to Kubernetes to issue certificates.<br />- Secret containing only the 'ca.crt' in order to establish trust. In this case, either clientCertSecretRef or clientCertIssuerRef fields must be provided.<br />If not provided, a self-signed CA will be provisioned to issue the client certificate. |  |  |
 | `clientCertSecretRef` _[LocalObjectReference](#localobjectreference)_ | ClientCertSecretRef is a reference to a TLS Secret containing the client certificate.<br />It is mutually exclusive with clientCertIssuerRef. |  |  |
 | `clientCertIssuerRef` _[ObjectReference](#objectreference)_ | ClientCertIssuerRef is a reference to a cert-manager issuer object used to issue the client certificate. cert-manager must be installed previously in the cluster.<br />It is mutually exclusive with clientCertSecretRef.<br />By default, the Secret field 'ca.crt' provisioned by cert-manager will be added to the trust chain. A custom trust bundle may be specified via clientCASecretRef. |  |  |
-| `clientCertConfig` _[TLSConfig](#tlsconfig)_ | ClientCertConfig allows configuring the client certificates, either issued by the operator or cert-manager.<br />If not set, the default settings will be used. |  |  |
+| `clientCertConfig` _[CertConfig](#certconfig)_ | ClientCertConfig allows configuring the client certificates, either issued by the operator or cert-manager.<br />If not set, the default settings will be used. |  |  |
 | `galeraSSTEnabled` _boolean_ | GaleraSSTEnabled determines whether Galera SST connections should use TLS.<br />It disabled by default. |  |  |
 | `galeraServerSSLMode` _string_ | GaleraServerSSLMode defines the server SSL mode for a Galera Enterprise cluster.<br />This field is only supported and applicable for Galera Enterprise >= 10.6 instances.<br />Refer to the MariaDB Enterprise docs for more detail: https://mariadb.com/docs/galera-cluster/galera-security/mariadb-enterprise-cluster-security#wsrep-tls-modes |  | Enum: [PROVIDER SERVER SERVER_X509] <br /> |
 | `galeraClientSSLMode` _string_ | GaleraClientSSLMode defines the client SSL mode for a Galera Enterprise cluster.<br />This field is only supported and applicable for Galera Enterprise >= 10.6 instances.<br />Refer to the MariaDB Enterprise docs for more detail: https://mariadb.com/docs/galera-cluster/galera-security/mariadb-enterprise-cluster-security#sst-tls-modes |  | Enum: [DISABLED REQUIRED VERIFY_CA VERIFY_IDENTITY] <br /> |
@@ -1218,6 +1245,7 @@ _Appears in:_
 - [PhysicalBackupPodTemplate](#physicalbackuppodtemplate)
 - [PhysicalBackupSpec](#physicalbackupspec)
 - [PodTemplate](#podtemplate)
+- [PointInTimeRecoverySpec](#pointintimerecoveryspec)
 - [ReplicaBootstrapFrom](#replicabootstrapfrom)
 - [RestoreSource](#restoresource)
 - [RestoreSpec](#restorespec)
@@ -1246,38 +1274,6 @@ MariaDB is the Schema for the mariadbs API. It is used to define MariaDB cluster
 | `kind` _string_ | `MariaDB` | | |
 | `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.35/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
 | `spec` _[MariaDBSpec](#mariadbspec)_ |  |  |  |
-
-
-#### MariaDBMaxScaleSpec
-
-
-
-MariaDBMaxScaleSpec defines a reduced version of MaxScale to be used with the current MariaDB.
-
-
-
-_Appears in:_
-- [MariaDBSpec](#mariadbspec)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `enabled` _boolean_ | Enabled is a flag to enable a MaxScale instance to be used with the current MariaDB. |  |  |
-| `image` _string_ | Image name to be used by the MaxScale instances. The supported format is `<image>:<tag>`.<br />Only MariaDB official images are supported. |  |  |
-| `imagePullPolicy` _[PullPolicy](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.35/#pullpolicy-v1-core)_ | ImagePullPolicy is the image pull policy. One of `Always`, `Never` or `IfNotPresent`. If not defined, it defaults to `IfNotPresent`. |  | Enum: [Always Never IfNotPresent] <br /> |
-| `services` _[MaxScaleService](#maxscaleservice) array_ | Services define how the traffic is forwarded to the MariaDB servers. |  |  |
-| `monitor` _[MaxScaleMonitor](#maxscalemonitor)_ | Monitor monitors MariaDB server instances. |  |  |
-| `admin` _[MaxScaleAdmin](#maxscaleadmin)_ | Admin configures the admin REST API and GUI. |  |  |
-| `config` _[MaxScaleConfig](#maxscaleconfig)_ | Config defines the MaxScale configuration. |  |  |
-| `auth` _[MaxScaleAuth](#maxscaleauth)_ | Auth defines the credentials required for MaxScale to connect to MariaDB. |  |  |
-| `metrics` _[MaxScaleMetrics](#maxscalemetrics)_ | Metrics configures metrics and how to scrape them. |  |  |
-| `tls` _[MaxScaleTLS](#maxscaletls)_ | TLS defines the PKI to be used with MaxScale. |  |  |
-| `connection` _[ConnectionTemplate](#connectiontemplate)_ | Connection provides a template to define the Connection for MaxScale. |  |  |
-| `replicas` _integer_ | Replicas indicates the number of desired instances. |  |  |
-| `podDisruptionBudget` _[PodDisruptionBudget](#poddisruptionbudget)_ | PodDisruptionBudget defines the budget for replica availability. |  |  |
-| `updateStrategy` _[StatefulSetUpdateStrategy](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.35/#statefulsetupdatestrategy-v1-apps)_ | UpdateStrategy defines the update strategy for the StatefulSet object. |  |  |
-| `kubernetesService` _[ServiceTemplate](#servicetemplate)_ | KubernetesService defines a template for a Kubernetes Service object to connect to MaxScale. |  |  |
-| `guiKubernetesService` _[ServiceTemplate](#servicetemplate)_ | GuiKubernetesService define a template for a Kubernetes Service object to connect to MaxScale's GUI. |  |  |
-| `requeueInterval` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.35/#duration-v1-meta)_ | RequeueInterval is used to perform requeue reconciliations. |  |  |
 
 
 #### MariaDBRef
@@ -1363,8 +1359,8 @@ _Appears in:_
 | `tls` _[TLS](#tls)_ | TLS defines the PKI to be used with MariaDB. |  |  |
 | `replication` _[Replication](#replication)_ | Replication configures high availability via replication. This feature is still in alpha, use Galera if you are looking for a more production-ready HA. |  |  |
 | `galera` _[Galera](#galera)_ | Galera configures high availability via Galera. |  |  |
-| `maxScaleRef` _[ObjectReference](#objectreference)_ | MaxScaleRef is a reference to a MaxScale resource to be used with the current MariaDB.<br />Providing this field implies delegating high availability tasks such as primary failover to MaxScale. |  |  |
-| `maxScale` _[MariaDBMaxScaleSpec](#mariadbmaxscalespec)_ | MaxScale is the MaxScale specification that defines the MaxScale resource to be used with the current MariaDB.<br />When enabling this field, MaxScaleRef is automatically set. |  |  |
+| `maxScaleRef` _[ObjectReference](#objectreference)_ | MaxScaleRef is a reference to a MaxScale resource to be used with the current MariaDB.<br />Providing this reference implies delegating high availability tasks such as primary failover to MaxScale. |  |  |
+| `pointInTimeRecoveryRef` _[LocalObjectReference](#localobjectreference)_ | PointInTimeRecoveryRef is a reference to a PointInTimeRecovery resource to be used with the current MariaDB.<br />Providing this reference implies configuring binary logs in the MariaDB instance and binary log archival in the sidecar agent. |  |  |
 | `replicas` _integer_ | Replicas indicates the number of desired instances. | 1 |  |
 | `replicasAllowEvenNumber` _boolean_ | disables the validation check for an odd number of replicas. | false |  |
 | `port` _integer_ | Port where the instances will be listening for connections. | 3306 |  |
@@ -1426,7 +1422,6 @@ MaxScaleAdmin configures the admin REST API and GUI.
 
 
 _Appears in:_
-- [MariaDBMaxScaleSpec](#mariadbmaxscalespec)
 - [MaxScaleSpec](#maxscalespec)
 
 | Field | Description | Default | Validation |
@@ -1444,7 +1439,6 @@ MaxScaleAuth defines the credentials required for MaxScale to connect to MariaDB
 
 
 _Appears in:_
-- [MariaDBMaxScaleSpec](#mariadbmaxscalespec)
 - [MaxScaleSpec](#maxscalespec)
 
 | Field | Description | Default | Validation |
@@ -1478,7 +1472,6 @@ MaxScaleConfig defines the MaxScale configuration.
 
 
 _Appears in:_
-- [MariaDBMaxScaleSpec](#mariadbmaxscalespec)
 - [MaxScaleSpec](#maxscalespec)
 
 | Field | Description | Default | Validation |
@@ -1535,7 +1528,6 @@ MaxScaleMetrics defines the metrics for a Maxscale.
 
 
 _Appears in:_
-- [MariaDBMaxScaleSpec](#mariadbmaxscalespec)
 - [MaxScaleSpec](#maxscalespec)
 
 | Field | Description | Default | Validation |
@@ -1554,7 +1546,6 @@ MaxScaleMonitor monitors MariaDB server instances
 
 
 _Appears in:_
-- [MariaDBMaxScaleSpec](#mariadbmaxscalespec)
 - [MaxScaleSpec](#maxscalespec)
 
 | Field | Description | Default | Validation |
@@ -1621,7 +1612,6 @@ Services define how the traffic is forwarded to the MariaDB servers.
 
 
 _Appears in:_
-- [MariaDBMaxScaleSpec](#mariadbmaxscalespec)
 - [MaxScaleSpec](#maxscalespec)
 
 | Field | Description | Default | Validation |
@@ -1697,7 +1687,6 @@ TLS defines the PKI to be used with MaxScale.
 
 
 _Appears in:_
-- [MariaDBMaxScaleSpec](#mariadbmaxscalespec)
 - [MaxScaleSpec](#maxscalespec)
 
 | Field | Description | Default | Validation |
@@ -1708,11 +1697,11 @@ _Appears in:_
 | `adminCASecretRef` _[LocalObjectReference](#localobjectreference)_ | AdminCASecretRef is a reference to a Secret containing the admin certificate authority keypair. It is used to establish trust and issue certificates for the MaxScale's administrative REST API and GUI.<br />One of:<br />- Secret containing both the 'ca.crt' and 'ca.key' keys. This allows you to bring your own CA to Kubernetes to issue certificates.<br />- Secret containing only the 'ca.crt' in order to establish trust. In this case, either adminCertSecretRef or adminCertIssuerRef fields must be provided.<br />If not provided, a self-signed CA will be provisioned to issue the server certificate. |  |  |
 | `adminCertSecretRef` _[LocalObjectReference](#localobjectreference)_ | AdminCertSecretRef is a reference to a TLS Secret used by the MaxScale's administrative REST API and GUI. |  |  |
 | `adminCertIssuerRef` _[ObjectReference](#objectreference)_ | AdminCertIssuerRef is a reference to a cert-manager issuer object used to issue the MaxScale's administrative REST API and GUI certificate. cert-manager must be installed previously in the cluster.<br />It is mutually exclusive with adminCertSecretRef.<br />By default, the Secret field 'ca.crt' provisioned by cert-manager will be added to the trust chain. A custom trust bundle may be specified via adminCASecretRef. |  |  |
-| `adminCertConfig` _[TLSConfig](#tlsconfig)_ | AdminCertConfig allows configuring the admin certificates, either issued by the operator or cert-manager.<br />If not set, the default settings will be used. |  |  |
+| `adminCertConfig` _[CertConfig](#certconfig)_ | AdminCertConfig allows configuring the admin certificates, either issued by the operator or cert-manager.<br />If not set, the default settings will be used. |  |  |
 | `listenerCASecretRef` _[LocalObjectReference](#localobjectreference)_ | ListenerCASecretRef is a reference to a Secret containing the listener certificate authority keypair. It is used to establish trust and issue certificates for the MaxScale's listeners.<br />One of:<br />- Secret containing both the 'ca.crt' and 'ca.key' keys. This allows you to bring your own CA to Kubernetes to issue certificates.<br />- Secret containing only the 'ca.crt' in order to establish trust. In this case, either listenerCertSecretRef or listenerCertIssuerRef fields must be provided.<br />If not provided, a self-signed CA will be provisioned to issue the listener certificate. |  |  |
 | `listenerCertSecretRef` _[LocalObjectReference](#localobjectreference)_ | ListenerCertSecretRef is a reference to a TLS Secret used by the MaxScale's listeners. |  |  |
 | `listenerCertIssuerRef` _[ObjectReference](#objectreference)_ | ListenerCertIssuerRef is a reference to a cert-manager issuer object used to issue the MaxScale's listeners certificate. cert-manager must be installed previously in the cluster.<br />It is mutually exclusive with listenerCertSecretRef.<br />By default, the Secret field 'ca.crt' provisioned by cert-manager will be added to the trust chain. A custom trust bundle may be specified via listenerCASecretRef. |  |  |
-| `listenerCertConfig` _[TLSConfig](#tlsconfig)_ | ListenerCertConfig allows configuring the listener certificates, either issued by the operator or cert-manager.<br />If not set, the default settings will be used. |  |  |
+| `listenerCertConfig` _[CertConfig](#certconfig)_ | ListenerCertConfig allows configuring the listener certificates, either issued by the operator or cert-manager.<br />If not set, the default settings will be used. |  |  |
 | `serverCASecretRef` _[LocalObjectReference](#localobjectreference)_ | ServerCASecretRef is a reference to a Secret containing the MariaDB server CA certificates. It is used to establish trust with MariaDB servers.<br />The Secret should contain a 'ca.crt' key in order to establish trust.<br />If not provided, and the reference to a MariaDB resource is set (mariaDbRef), it will be defaulted to the referred MariaDB CA bundle. |  |  |
 | `serverCertSecretRef` _[LocalObjectReference](#localobjectreference)_ | ServerCertSecretRef is a reference to a TLS Secret used by MaxScale to connect to the MariaDB servers.<br />If not provided, and the reference to a MariaDB resource is set (mariaDbRef), it will be defaulted to the referred MariaDB client certificate (clientCertSecretRef). |  |  |
 | `verifyPeerCertificate` _boolean_ | VerifyPeerCertificate specifies whether the peer certificate's signature should be validated against the CA.<br />It is disabled by default. |  |  |
@@ -1943,9 +1932,9 @@ Refer to the Kubernetes docs: https://kubernetes.io/docs/reference/generated/kub
 
 
 _Appears in:_
-- [BackupStagingStorage](#backupstagingstorage)
 - [BackupStorage](#backupstorage)
 - [PhysicalBackupStorage](#physicalbackupstorage)
+- [StagingStorage](#stagingstorage)
 - [VolumeClaimTemplate](#volumeclaimtemplate)
 
 | Field | Description | Default | Validation |
@@ -2057,7 +2046,7 @@ _Appears in:_
 | `mariaDbRef` _[MariaDBRef](#mariadbref)_ | MariaDBRef is a reference to a MariaDB object. |  | Required: \{\} <br /> |
 | `target` _[PhysicalBackupTarget](#physicalbackuptarget)_ | Target defines in which Pod the physical backups will be taken. It defaults to "Replica", meaning that the physical backups will only be taken in ready replicas. |  | Enum: [Replica PreferReplica] <br /> |
 | `compression` _[CompressAlgorithm](#compressalgorithm)_ | Compression algorithm to be used in the Backup. |  | Enum: [none bzip2 gzip] <br /> |
-| `stagingStorage` _[BackupStagingStorage](#backupstagingstorage)_ | StagingStorage defines the temporary storage used to keep external backups (i.e. S3) while they are being processed.<br />It defaults to an emptyDir volume, meaning that the backups will be temporarily stored in the node where the PhysicalBackup Job is scheduled.<br />The staging area gets cleaned up after each backup is completed, consider this for sizing it appropriately. |  |  |
+| `stagingStorage` _[StagingStorage](#stagingstorage)_ | StagingStorage defines the temporary storage used to keep external backups (i.e. S3) while they are being processed.<br />It defaults to an emptyDir volume, meaning that the backups will be temporarily stored in the node where the PhysicalBackup Job is scheduled.<br />The staging area gets cleaned up after each backup is completed, consider this for sizing it appropriately. |  |  |
 | `storage` _[PhysicalBackupStorage](#physicalbackupstorage)_ | Storage defines the final storage for backups. |  | Required: \{\} <br /> |
 | `schedule` _[PhysicalBackupSchedule](#physicalbackupschedule)_ | Schedule defines when the PhysicalBackup will be taken. |  |  |
 | `maxRetention` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.35/#duration-v1-meta)_ | MaxRetention defines the retention policy for backups. Old backups will be cleaned up by the Backup Job.<br />It defaults to 30 days. |  |  |
@@ -2084,6 +2073,7 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `s3` _[S3](#s3)_ | S3 defines the configuration to store backups in a S3 compatible storage. |  |  |
+| `azureBlob` _[AzureBlob](#azureblob)_ | AzureBlob defines the configuration to store backups in a AzureBlob compatible storage. |  |  |
 | `persistentVolumeClaim` _[PersistentVolumeClaimSpec](#persistentvolumeclaimspec)_ | PersistentVolumeClaim is a Kubernetes PVC specification. |  |  |
 | `volume` _[StorageVolumeSource](#storagevolumesource)_ | Volume is a Kubernetes volume specification. |  |  |
 | `volumeSnapshot` _[PhysicalBackupVolumeSnapshot](#physicalbackupvolumesnapshot)_ | VolumeSnapshot is a Kubernetes VolumeSnapshot specification. |  |  |
@@ -2168,7 +2158,6 @@ PodDisruptionBudget is the Pod availability bundget for a MariaDB
 
 
 _Appears in:_
-- [MariaDBMaxScaleSpec](#mariadbmaxscalespec)
 - [MariaDBSpec](#mariadbspec)
 - [MaxScaleSpec](#maxscalespec)
 
@@ -2237,6 +2226,64 @@ _Appears in:_
 | `volumes` _[Volume](#volume) array_ | Volumes to be used in the Pod. |  |  |
 | `priorityClassName` _string_ | PriorityClassName to be used in the Pod. |  |  |
 | `topologySpreadConstraints` _[TopologySpreadConstraint](#topologyspreadconstraint) array_ | TopologySpreadConstraints to be used in the Pod. |  |  |
+
+
+#### PointInTimeRecovery
+
+
+
+PointInTimeRecovery is the Schema for the pointintimerecoveries API. It contains binlog archival and point-in-time restoration settings.
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `apiVersion` _string_ | `enterprise.mariadb.com/v1alpha1` | | |
+| `kind` _string_ | `PointInTimeRecovery` | | |
+| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.35/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `spec` _[PointInTimeRecoverySpec](#pointintimerecoveryspec)_ |  |  |  |
+
+
+#### PointInTimeRecoverySpec
+
+
+
+PointInTimeRecoverySpec defines the desired state of PointInTimeRecovery. It contains binlog archive and point-in-time restoration settings.
+
+
+
+_Appears in:_
+- [PointInTimeRecovery](#pointintimerecovery)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `physicalBackupRef` _[LocalObjectReference](#localobjectreference)_ | PhysicalBackupRef is a reference to a PhysicalBackup object that will be used as base backup. |  | Required: \{\} <br /> |
+| `storage` _[PointInTimeRecoveryStorage](#pointintimerecoverystorage)_ | PointInTimeRecoveryStorage is the storage where the point in time recovery data will be stored |  | Required: \{\} <br /> |
+| `compression` _[CompressAlgorithm](#compressalgorithm)_ | Compression algorithm to be used for compressing the binary logs.<br />This field is immutable, it cannot be updated after creation. |  | Enum: [none bzip2 gzip] <br /> |
+| `archiveTimeout` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.35/#duration-v1-meta)_ | ArchiveTimeout defines the maximum duration for the binary log archival.<br />If this duration is exceeded, the sidecar agent will log an error and it will be retried in the next archive cycle.<br />It defaults to 1 hour. | 1h |  |
+| `strictMode` _boolean_ | StrictMode controls the behavior when a point-in-time restoration cannot reach the exact target time:<br />When enabled: Returns an error and avoids replaying binary logs if target time is not reached.<br />When disabled (default): Replays available binary logs until the last recoverable time. It logs logs an error if target time is not reached. |  |  |
+| `archiveInterval` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.35/#duration-v1-meta)_ | ArchiveInterval defines the time interval at which the binary logs will be archived.<br />It defaults to 10 minutes. | 10m |  |
+| `maxParallel` _integer_ | MaxParallel defines the maximum number of parallel workers, both for archiving and restoring the binary logs.<br />It defaults to 1. | 1 | Minimum: 1 <br /> |
+| `maxRetention` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.35/#duration-v1-meta)_ | MaxRetention defines the retention policy for binary logs. Binary logs older than this duration will be cleaned up when the archival is completed.<br />It is not set by default, meaning that old binary logs will not be cleaned up.<br />This field is immutable, it cannot be updated after creation. |  |  |
+
+
+#### PointInTimeRecoveryStorage
+
+
+
+PointInTimeRecoveryStorage stores the different storage options for PITR
+
+
+
+_Appears in:_
+- [PointInTimeRecoverySpec](#pointintimerecoveryspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `s3` _[S3](#s3)_ | S3 is the S3-compatible storage where the binary logs will be kept. |  |  |
+| `azureBlob` _[AzureBlob](#azureblob)_ | AzureBlob is the Azure Blob Storage where the binary logs will be kept. |  |  |
 
 
 #### PreferredSchedulingTerm
@@ -2512,7 +2559,7 @@ _Appears in:_
 | `s3` _[S3](#s3)_ | S3 defines the configuration to restore backups from a S3 compatible storage. It has priority over Volume. |  |  |
 | `volume` _[StorageVolumeSource](#storagevolumesource)_ | Volume is a Kubernetes Volume object that contains a backup. |  |  |
 | `targetRecoveryTime` _[Time](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.35/#time-v1-meta)_ | TargetRecoveryTime is a RFC3339 (1970-01-01T00:00:00Z) date and time that defines the point in time recovery objective.<br />It is used to determine the closest restoration source in time. |  |  |
-| `stagingStorage` _[BackupStagingStorage](#backupstagingstorage)_ | StagingStorage defines the temporary storage used to keep external backups (i.e. S3) while they are being processed.<br />It defaults to an emptyDir volume, meaning that the backups will be temporarily stored in the node where the Restore Job is scheduled. |  |  |
+| `stagingStorage` _[StagingStorage](#stagingstorage)_ | StagingStorage defines the temporary storage used to keep external backups (i.e. S3) while they are being processed.<br />It defaults to an emptyDir volume, meaning that the backups will be temporarily stored in the node where the Restore Job is scheduled. |  |  |
 
 
 #### RestoreSpec
@@ -2543,7 +2590,7 @@ _Appears in:_
 | `s3` _[S3](#s3)_ | S3 defines the configuration to restore backups from a S3 compatible storage. It has priority over Volume. |  |  |
 | `volume` _[StorageVolumeSource](#storagevolumesource)_ | Volume is a Kubernetes Volume object that contains a backup. |  |  |
 | `targetRecoveryTime` _[Time](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.35/#time-v1-meta)_ | TargetRecoveryTime is a RFC3339 (1970-01-01T00:00:00Z) date and time that defines the point in time recovery objective.<br />It is used to determine the closest restoration source in time. |  |  |
-| `stagingStorage` _[BackupStagingStorage](#backupstagingstorage)_ | StagingStorage defines the temporary storage used to keep external backups (i.e. S3) while they are being processed.<br />It defaults to an emptyDir volume, meaning that the backups will be temporarily stored in the node where the Restore Job is scheduled. |  |  |
+| `stagingStorage` _[StagingStorage](#stagingstorage)_ | StagingStorage defines the temporary storage used to keep external backups (i.e. S3) while they are being processed.<br />It defaults to an emptyDir volume, meaning that the backups will be temporarily stored in the node where the Restore Job is scheduled. |  |  |
 | `mariaDbRef` _[MariaDBRef](#mariadbref)_ | MariaDBRef is a reference to a MariaDB object. |  | Required: \{\} <br /> |
 | `database` _string_ | Database defines the logical database to be restored. If not provided, all databases available in the backup are restored.<br />IMPORTANT: The database must previously exist. |  |  |
 | `logLevel` _string_ | LogLevel to be used n the Backup Job. It defaults to 'info'. | info | Enum: [debug info warn error dpanic panic fatal] <br /> |
@@ -2564,6 +2611,7 @@ _Appears in:_
 - [BackupStorage](#backupstorage)
 - [BootstrapFrom](#bootstrapfrom)
 - [PhysicalBackupStorage](#physicalbackupstorage)
+- [PointInTimeRecoveryStorage](#pointintimerecoverystorage)
 - [RestoreSource](#restoresource)
 - [RestoreSpec](#restorespec)
 
@@ -2576,7 +2624,7 @@ _Appears in:_
 | `accessKeyIdSecretKeyRef` _[SecretKeySelector](#secretkeyselector)_ | AccessKeyIdSecretKeyRef is a reference to a Secret key containing the S3 access key id. |  |  |
 | `secretAccessKeySecretKeyRef` _[SecretKeySelector](#secretkeyselector)_ | AccessKeyIdSecretKeyRef is a reference to a Secret key containing the S3 secret key. |  |  |
 | `sessionTokenSecretKeyRef` _[SecretKeySelector](#secretkeyselector)_ | SessionTokenSecretKeyRef is a reference to a Secret key containing the S3 session token. |  |  |
-| `tls` _[TLSS3](#tlss3)_ | TLS provides the configuration required to establish TLS connections with S3. |  |  |
+| `tls` _[TLSConfig](#tlsconfig)_ | TLS provides the configuration required to establish TLS connections with S3. |  |  |
 | `ssec` _[SSECConfig](#ssecconfig)_ | SSEC is a reference to a Secret containing the SSE-C (Server-Side Encryption with Customer-Provided Keys) key.<br />The secret must contain a 32-byte key (256 bits) in the specified key.<br />This enables server-side encryption where you provide and manage the encryption key. |  |  |
 
 
@@ -2663,6 +2711,7 @@ Refer to the Kubernetes docs: https://kubernetes.io/docs/reference/generated/kub
 
 
 _Appears in:_
+- [AzureBlob](#azureblob)
 - [ConnectionSpec](#connectionspec)
 - [EnvVarSource](#envvarsource)
 - [ExternalMariaDBSpec](#externalmariadbspec)
@@ -2672,7 +2721,7 @@ _Appears in:_
 - [S3](#s3)
 - [SSECConfig](#ssecconfig)
 - [SqlJobSpec](#sqljobspec)
-- [TLSS3](#tlss3)
+- [TLSConfig](#tlsconfig)
 - [UserSpec](#userspec)
 
 | Field | Description | Default | Validation |
@@ -2818,7 +2867,6 @@ ServiceTemplate defines a template to customize Service objects.
 
 
 _Appears in:_
-- [MariaDBMaxScaleSpec](#mariadbmaxscalespec)
 - [MariaDBSpec](#mariadbspec)
 - [MaxScaleSpec](#maxscalespec)
 
@@ -2831,6 +2879,7 @@ _Appears in:_
 | `externalTrafficPolicy` _[ServiceExternalTrafficPolicy](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.35/#serviceexternaltrafficpolicy-v1-core)_ | ExternalTrafficPolicy Service field. |  |  |
 | `sessionAffinity` _[ServiceAffinity](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.35/#serviceaffinity-v1-core)_ | SessionAffinity Service field. |  |  |
 | `allocateLoadBalancerNodePorts` _boolean_ | AllocateLoadBalancerNodePorts Service field. |  |  |
+| `loadBalancerClass` _string_ | LoadBalancerClass Service field. |  |  |
 
 
 #### SqlJob
@@ -2893,6 +2942,27 @@ _Appears in:_
 | `inheritMetadata` _[Metadata](#metadata)_ | InheritMetadata defines the metadata to be inherited by children resources. |  |  |
 
 
+#### StagingStorage
+
+
+
+StagingStorage defines the temporary storage used to keep external backups (i.e. S3) while they are being processed.
+
+
+
+_Appears in:_
+- [BackupSpec](#backupspec)
+- [BootstrapFrom](#bootstrapfrom)
+- [PhysicalBackupSpec](#physicalbackupspec)
+- [RestoreSource](#restoresource)
+- [RestoreSpec](#restorespec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `persistentVolumeClaim` _[PersistentVolumeClaimSpec](#persistentvolumeclaimspec)_ | PersistentVolumeClaim is a Kubernetes PVC specification. |  |  |
+| `volume` _[StorageVolumeSource](#storagevolumesource)_ | Volume is a Kubernetes volume specification. |  |  |
+
+
 #### StatefulSetPersistentVolumeClaimRetentionPolicy
 
 
@@ -2942,12 +3012,12 @@ Refer to the Kubernetes docs: https://kubernetes.io/docs/reference/generated/kub
 
 
 _Appears in:_
-- [BackupStagingStorage](#backupstagingstorage)
 - [BackupStorage](#backupstorage)
 - [BootstrapFrom](#bootstrapfrom)
 - [PhysicalBackupStorage](#physicalbackupstorage)
 - [RestoreSource](#restoresource)
 - [RestoreSpec](#restorespec)
+- [StagingStorage](#stagingstorage)
 - [Volume](#volume)
 - [VolumeSource](#volumesource)
 
@@ -3018,11 +3088,11 @@ _Appears in:_
 | `serverCASecretRef` _[LocalObjectReference](#localobjectreference)_ | ServerCASecretRef is a reference to a Secret containing the server certificate authority keypair. It is used to establish trust and issue server certificates.<br />One of:<br />- Secret containing both the 'ca.crt' and 'ca.key' keys. This allows you to bring your own CA to Kubernetes to issue certificates.<br />- Secret containing only the 'ca.crt' in order to establish trust. In this case, either serverCertSecretRef or serverCertIssuerRef must be provided.<br />If not provided, a self-signed CA will be provisioned to issue the server certificate. |  |  |
 | `serverCertSecretRef` _[LocalObjectReference](#localobjectreference)_ | ServerCertSecretRef is a reference to a TLS Secret containing the server certificate.<br />It is mutually exclusive with serverCertIssuerRef. |  |  |
 | `serverCertIssuerRef` _[ObjectReference](#objectreference)_ | ServerCertIssuerRef is a reference to a cert-manager issuer object used to issue the server certificate. cert-manager must be installed previously in the cluster.<br />It is mutually exclusive with serverCertSecretRef.<br />By default, the Secret field 'ca.crt' provisioned by cert-manager will be added to the trust chain. A custom trust bundle may be specified via serverCASecretRef. |  |  |
-| `serverCertConfig` _[TLSConfig](#tlsconfig)_ | ServerCertConfig allows configuring the server certificates, either issued by the operator or cert-manager.<br />If not set, the default settings will be used. |  |  |
+| `serverCertConfig` _[CertConfig](#certconfig)_ | ServerCertConfig allows configuring the server certificates, either issued by the operator or cert-manager.<br />If not set, the default settings will be used. |  |  |
 | `clientCASecretRef` _[LocalObjectReference](#localobjectreference)_ | ClientCASecretRef is a reference to a Secret containing the client certificate authority keypair. It is used to establish trust and issue client certificates.<br />One of:<br />- Secret containing both the 'ca.crt' and 'ca.key' keys. This allows you to bring your own CA to Kubernetes to issue certificates.<br />- Secret containing only the 'ca.crt' in order to establish trust. In this case, either clientCertSecretRef or clientCertIssuerRef fields must be provided.<br />If not provided, a self-signed CA will be provisioned to issue the client certificate. |  |  |
 | `clientCertSecretRef` _[LocalObjectReference](#localobjectreference)_ | ClientCertSecretRef is a reference to a TLS Secret containing the client certificate.<br />It is mutually exclusive with clientCertIssuerRef. |  |  |
 | `clientCertIssuerRef` _[ObjectReference](#objectreference)_ | ClientCertIssuerRef is a reference to a cert-manager issuer object used to issue the client certificate. cert-manager must be installed previously in the cluster.<br />It is mutually exclusive with clientCertSecretRef.<br />By default, the Secret field 'ca.crt' provisioned by cert-manager will be added to the trust chain. A custom trust bundle may be specified via clientCASecretRef. |  |  |
-| `clientCertConfig` _[TLSConfig](#tlsconfig)_ | ClientCertConfig allows configuring the client certificates, either issued by the operator or cert-manager.<br />If not set, the default settings will be used. |  |  |
+| `clientCertConfig` _[CertConfig](#certconfig)_ | ClientCertConfig allows configuring the client certificates, either issued by the operator or cert-manager.<br />If not set, the default settings will be used. |  |  |
 | `galeraSSTEnabled` _boolean_ | GaleraSSTEnabled determines whether Galera SST connections should use TLS.<br />It disabled by default. |  |  |
 | `galeraServerSSLMode` _string_ | GaleraServerSSLMode defines the server SSL mode for a Galera Enterprise cluster.<br />This field is only supported and applicable for Galera Enterprise >= 10.6 instances.<br />Refer to the MariaDB Enterprise docs for more detail: https://mariadb.com/docs/galera-cluster/galera-security/mariadb-enterprise-cluster-security#wsrep-tls-modes |  | Enum: [PROVIDER SERVER SERVER_X509] <br /> |
 | `galeraClientSSLMode` _string_ | GaleraClientSSLMode defines the client SSL mode for a Galera Enterprise cluster.<br />This field is only supported and applicable for Galera Enterprise >= 10.6 instances.<br />Refer to the MariaDB Enterprise docs for more detail: https://mariadb.com/docs/galera-cluster/galera-security/mariadb-enterprise-cluster-security#sst-tls-modes |  | Enum: [DISABLED REQUIRED VERIFY_CA VERIFY_IDENTITY] <br /> |
@@ -3032,21 +3102,18 @@ _Appears in:_
 
 
 
-TLSConfig defines parameters to configure a certificate.
+
 
 
 
 _Appears in:_
-- [ExternalTLS](#externaltls)
-- [MaxScaleTLS](#maxscaletls)
-- [TLS](#tls)
+- [AzureBlob](#azureblob)
+- [S3](#s3)
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `caLifetime` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.35/#duration-v1-meta)_ | CALifetime defines the CA certificate validity. |  |  |
-| `certLifetime` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.35/#duration-v1-meta)_ | CertLifetime defines the certificate validity. |  |  |
-| `privateKeyAlgorithm` _string_ | PrivateKeyAlgorithm is the algorithm to be used for the CA and leaf certificate private keys.<br />One of: ECDSA or RSA |  | Enum: [ECDSA RSA] <br /> |
-| `privateKeySize` _integer_ | PrivateKeyAlgorithm is the key size to be used for the CA and leaf certificate private keys.<br />Supported values: ECDSA(256, 384, 521), RSA(2048, 3072, 4096) |  |  |
+| `enabled` _boolean_ | Enabled is a flag to enable TLS. |  |  |
+| `caSecretKeyRef` _[SecretKeySelector](#secretkeyselector)_ | CASecretKeyRef is a reference to a Secret key containing a CA bundle in PEM format used to establish TLS connections with S3.<br />By default, the system trust chain will be used, but you can use this field to add more CAs to the bundle. |  |  |
 
 
 #### TLSRequirements
@@ -3066,23 +3133,6 @@ _Appears in:_
 | `x509` _boolean_ | X509 indicates that the user must provide a valid x509 certificate to connect. |  |  |
 | `issuer` _string_ | Issuer indicates that the TLS certificate provided by the user must be issued by a specific issuer. |  |  |
 | `subject` _string_ | Subject indicates that the TLS certificate provided by the user must have a specific subject. |  |  |
-
-
-#### TLSS3
-
-
-
-
-
-
-
-_Appears in:_
-- [S3](#s3)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `enabled` _boolean_ | Enabled is a flag to enable TLS. |  |  |
-| `caSecretKeyRef` _[SecretKeySelector](#secretkeyselector)_ | CASecretKeyRef is a reference to a Secret key containing a CA bundle in PEM format used to establish TLS connections with S3.<br />By default, the system trust chain will be used, but you can use this field to add more CAs to the bundle. |  |  |
 
 
 
