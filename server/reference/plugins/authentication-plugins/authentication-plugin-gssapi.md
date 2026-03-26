@@ -20,7 +20,7 @@ for MariaDB for passwordless login.
 ## Installing the Plugin's Package
 
 {% hint style="info" %}
-Since [MariaDB 10.11](https://app.gitbook.com/s/aEnK0ZXmUbJzqQrTjFyb/community-server/mariadb-10-11-series/what-is-mariadb-1011), on Windows, the plugin is included in the server. There is no need for separate installation.
+Since [MariaDB 10.11](https://app.gitbook.com/s/aEnK0ZXmUbJzqQrTjFyb/community-server/mariadb-10-11-series/what-is-mariadb-1011), on Windows, the server plugin is a builtin, compiled into the server, and ON by default. Also client plugin is built as builtin. Therefore auth_gssapi.dll is no longer needed or distributed.
 {% endhint %}
 
 The `gssapi` authentication plugin's shared library is included in MariaDB packages as the `auth_gssapi.so` or `auth_gssapi.dll` shared library on systems where it can be built.
@@ -64,16 +64,16 @@ sudo zypper install MariaDB-gssapi-server
 ### Installing on Windows
 
 {% hint style="info" %}
-Before [MariaDB 10.11](https://app.gitbook.com/s/aEnK0ZXmUbJzqQrTjFyb/community-server/mariadb-10-11-series/what-is-mariadb-1011), the `gssapi` authentication plugin is included in [MSI](../../../server-management/install-and-upgrade-mariadb/installing-mariadb/binary-packages/installing-mariadb-msi-packages-on-windows.md) and [ZIP](../../../server-management/install-and-upgrade-mariadb/installing-mariadb/binary-packages/installing-mariadb-windows-zip-packages.md) packages on Windows.
+Since [MariaDB 10.11](https://app.gitbook.com/s/aEnK0ZXmUbJzqQrTjFyb/community-server/mariadb-10-11-series/what-is-mariadb-1011) , plugin is compiled as builtin into the server and client
 {% endhint %}
 
-## Installing the Plugin
+## Installing the Plugin (before MariaDB 10.11)
 
 {% hint style="info" %}
 Since [MariaDB 10.11](https://app.gitbook.com/s/aEnK0ZXmUbJzqQrTjFyb/community-server/mariadb-10-11-series/what-is-mariadb-1011), on Windows, the plugin is included in the server. There is no need for separate installation.
 {% endhint %}
 
-On Windows, and on other operating systems, although the plugin's shared library is distributed with MariaDB by default, the plugin is not actually installed by MariaDB by default. There are two methods that can be used to install the plugin with MariaDB.
+Prior to [MariaDB 10.11](https://app.gitbook.com/s/aEnK0ZXmUbJzqQrTjFyb/community-server/mariadb-10-11-series/what-is-mariadb-1011) on Windows was not installed by default, but included into both MSI and ZIP packages. There are two methods that can be used to install the plugin with MariaDB.
 
 The first method can be used to install the plugin without restarting the server. You can install the plugin dynamically by executing [INSTALL SONAME](../../sql-statements/administrative-sql-statements/plugin-sql-statements/install-soname.md) or [INSTALL PLUGIN](../../sql-statements/administrative-sql-statements/plugin-sql-statements/install-plugin.md):
 
